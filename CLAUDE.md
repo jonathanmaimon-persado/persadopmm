@@ -378,3 +378,11 @@ persado-marketing-ops/
 6. If a headline could describe any other AI content tool, rewrite it
 7. Apply the "so what?" test to every claim
 8. Check proof points against `/knowledge/positioning/proof-points.md`
+
+---
+
+## Git Conventions
+
+- **Branch naming:** Feature branches use the pattern `claude/<description>-<session-id>`
+- **Commits:** Use clear, descriptive commit messages summarizing the "why" over the "what"
+- **Push:** Always use `git push -u origin <branch-name>`
