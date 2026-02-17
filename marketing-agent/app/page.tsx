@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import type { Message, Conversation } from "@/lib/types";
+import type { Message, Conversation, AppView } from "@/lib/types";
 import ChatWindow from "./components/ChatWindow";
 import InputBar from "./components/InputBar";
 import Sidebar from "./components/Sidebar";
 import WelcomeState from "./components/WelcomeState";
+import KnowledgeLibrary from "./components/KnowledgeLibrary";
 
 function generateId() {
   return Math.random().toString(36).substring(2, 15);
@@ -31,6 +32,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSuggestion, setPendingSuggestion] = useState("");
+  const [appView, setAppView] = useState<AppView>("chat");
 
   // Track online status
   useEffect(() => {
@@ -251,6 +253,8 @@ export default function Home() {
 
   const showWelcome = !activeId && conversations.every((c) => c.id !== activeId);
 
+  const headerLabel = appView === "chat" ? "Marketing Agent" : "Knowledge Library";
+
   return (
     <div className="flex h-dvh overflow-hidden bg-[#f9fafb]">
       {/* Sidebar */}
@@ -260,13 +264,16 @@ export default function Home() {
         onSelect={(id) => {
           setActiveId(id);
           setError(null);
+          setAppView("chat");
         }}
         onNew={handleNewChat}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        appView={appView}
+        onViewChange={setAppView}
       />
 
-      {/* Main chat area */}
+      {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white">
@@ -289,10 +296,10 @@ export default function Home() {
             </svg>
           </button>
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">
-            M
+            {appView === "chat" ? "M" : "K"}
           </div>
           <h1 className="font-semibold text-gray-900 text-sm">
-            Marketing Agent
+            {headerLabel}
           </h1>
         </header>
 
@@ -303,36 +310,44 @@ export default function Home() {
           </div>
         )}
 
-        {/* Chat area */}
-        {showWelcome && messages.length === 0 ? (
-          <div className="flex-1 overflow-y-auto">
-            <WelcomeState onSuggestionClick={handleSuggestionClick} />
-          </div>
-        ) : (
-          <ChatWindow messages={messages} isLoading={isLoading} />
+        {/* CHAT VIEW */}
+        {appView === "chat" && (
+          <>
+            {/* Chat area */}
+            {showWelcome && messages.length === 0 ? (
+              <div className="flex-1 overflow-y-auto">
+                <WelcomeState onSuggestionClick={handleSuggestionClick} />
+              </div>
+            ) : (
+              <ChatWindow messages={messages} isLoading={isLoading} />
+            )}
+
+            {/* Error state */}
+            {error && (
+              <div className="px-4 pb-2">
+                <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm text-red-700">{error}</span>
+                  <button
+                    onClick={handleRetry}
+                    className="text-sm font-medium text-red-700 hover:text-red-900 underline cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Input bar */}
+            <InputBar
+              onSend={sendMessage}
+              disabled={isLoading || !isOnline}
+              initialValue={pendingSuggestion}
+            />
+          </>
         )}
 
-        {/* Error state */}
-        {error && (
-          <div className="px-4 pb-2">
-            <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
-              <span className="text-sm text-red-700">{error}</span>
-              <button
-                onClick={handleRetry}
-                className="text-sm font-medium text-red-700 hover:text-red-900 underline cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Input bar */}
-        <InputBar
-          onSend={sendMessage}
-          disabled={isLoading || !isOnline}
-          initialValue={pendingSuggestion}
-        />
+        {/* KNOWLEDGE VIEW */}
+        {appView === "knowledge" && <KnowledgeLibrary />}
       </div>
     </div>
   );
