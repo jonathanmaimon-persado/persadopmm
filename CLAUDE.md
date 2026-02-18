@@ -352,6 +352,32 @@ persado-marketing-ops/
 │   ├── outreach/
 │   ├── collateral/
 │   └── web/
+├── skills/                                ← Marketing skill modules
+│   ├── ab-test-setup/
+│   ├── analytics-tracking/
+│   ├── competitor-alternatives/
+│   ├── content-strategy/
+│   ├── copy-editing/
+│   ├── copywriting/
+│   ├── email-sequence/
+│   ├── form-cro/
+│   ├── free-tool-strategy/
+│   ├── launch-strategy/
+│   ├── marketing-ideas/
+│   ├── marketing-psychology/
+│   ├── onboarding-cro/
+│   ├── page-cro/
+│   ├── paid-ads/
+│   ├── paywall-upgrade-cro/
+│   ├── popup-cro/
+│   ├── pricing-strategy/
+│   ├── product-marketing-context/
+│   ├── programmatic-seo/
+│   ├── referral-program/
+│   ├── schema-markup/
+│   ├── seo-audit/
+│   ├── signup-flow-cro/
+│   └── social-content/
 ├── agents/
 │   ├── shared/
 │   │   └── system-prompt-base.md
@@ -368,16 +394,55 @@ persado-marketing-ops/
 
 ---
 
+## MARKETING SKILLS
+
+The `/skills` directory contains 25 specialized marketing skill modules. Each skill has a `SKILL.md` defining the skill's expertise, methodology, and output format, plus optional `references/` with supporting frameworks and templates.
+
+**How to use skills:** When a task matches a skill's domain, read the relevant `SKILL.md` before producing work. Apply the skill's methodology alongside Persado's messaging hierarchy and guardrails. Skills provide general marketing best practices — always layer Persado-specific positioning on top.
+
+### Skill Index
+
+| Skill | When to Use |
+|-------|-------------|
+| `ab-test-setup` | Planning, designing, or implementing A/B tests and experiments |
+| `analytics-tracking` | Setting up event tracking, GA4, GTM, or analytics instrumentation |
+| `competitor-alternatives` | Writing competitor comparison or alternatives pages |
+| `content-strategy` | Developing content plans, editorial calendars, or content systems |
+| `copy-editing` | Editing, tightening, or improving existing copy for clarity and impact |
+| `copywriting` | Writing or rewriting marketing copy for pages, landing pages, CTAs |
+| `email-sequence` | Designing email sequences, drip campaigns, or nurture flows |
+| `form-cro` | Optimizing form conversion rates, reducing form abandonment |
+| `free-tool-strategy` | Creating free tool or calculator strategies for lead generation |
+| `launch-strategy` | Planning product launches, feature releases, or campaign rollouts |
+| `marketing-ideas` | Brainstorming marketing tactics, growth ideas, or campaign concepts |
+| `marketing-psychology` | Applying behavioral psychology principles to marketing |
+| `onboarding-cro` | Optimizing user onboarding flows and activation rates |
+| `page-cro` | Optimizing landing page or web page conversion rates |
+| `paid-ads` | Creating ad copy, audience targeting, or paid campaign strategy |
+| `paywall-upgrade-cro` | Optimizing upgrade flows and paywall conversion |
+| `popup-cro` | Designing and optimizing popup experiences |
+| `pricing-strategy` | Developing pricing models, tiers, or pricing page strategy |
+| `product-marketing-context` | Setting up foundational product marketing context for other skills |
+| `programmatic-seo` | Creating programmatic SEO pages and strategies at scale |
+| `referral-program` | Designing referral or affiliate programs |
+| `schema-markup` | Implementing structured data and schema markup for SEO |
+| `seo-audit` | Conducting SEO audits, including AEO/GEO and AI content analysis |
+| `signup-flow-cro` | Optimizing signup flows and registration conversion |
+| `social-content` | Creating social media content, posts, and platform strategies |
+
+---
+
 ## BEFORE PRODUCING ANY DELIVERABLE — CHECKLIST
 
 1. Read this file (CLAUDE.md)
 2. Read `/knowledge/positioning/messaging-hierarchy.md`
 3. Read `/knowledge/positioning/guardrails.md`
-4. Confirm the brief specifies a target vertical and audience
-5. If the brief leads with performance or technology, flag it and redirect
-6. If a headline could describe any other AI content tool, rewrite it
-7. Apply the "so what?" test to every claim
-8. Check proof points against `/knowledge/positioning/proof-points.md`
+4. Check if a `/skills` module applies to the task — if so, read the relevant `SKILL.md`
+5. Confirm the brief specifies a target vertical and audience
+6. If the brief leads with performance or technology, flag it and redirect
+7. If a headline could describe any other AI content tool, rewrite it
+8. Apply the "so what?" test to every claim
+9. Check proof points against `/knowledge/positioning/proof-points.md`
 
 ---
 
