@@ -6,20 +6,20 @@ interface WelcomeStateProps {
 
 const suggestions = [
   {
-    label: "Draft a social media campaign",
-    icon: "📱",
-  },
-  {
-    label: "Write email copy for a product launch",
+    label: "Draft a cold outreach email for card acquisition",
     icon: "✉️",
   },
   {
-    label: "Analyze my campaign performance",
-    icon: "📊",
+    label: "Write a one-pager for the CREATE play",
+    icon: "📄",
   },
   {
-    label: "Create a content calendar",
-    icon: "📅",
+    label: "Build a battle card: Persado vs. agencies",
+    icon: "⚔️",
+  },
+  {
+    label: "Give me discovery questions for a mortgage VP",
+    icon: "🎯",
   },
 ];
 
@@ -30,11 +30,11 @@ export default function WelcomeState({ onSuggestionClick }: WelcomeStateProps) {
         ✦
       </div>
       <h1 className="text-2xl font-semibold text-gray-900 mb-2">
-        Hi! I&apos;m your Marketing Agent.
+        Persado Marketing Agent
       </h1>
       <p className="text-gray-500 text-center max-w-md mb-8">
-        I can help you create campaigns, write copy, analyze performance, and
-        strategize your marketing efforts.
+        Grounded in Persado&apos;s positioning, messaging hierarchy, proof
+        points, and brand guardrails. Ask me to produce any deliverable.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
         {suggestions.map((s) => (
