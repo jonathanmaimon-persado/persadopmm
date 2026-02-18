@@ -24,7 +24,7 @@ interface Category {
   subcategories: Subcategory[];
 }
 
-type View = "grid" | "list" | "read" | "edit";
+type View = "grid" | "list" | "read" | "edit" | "sync";
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   positioning: (
@@ -80,6 +80,14 @@ export default function KnowledgeLibrary() {
   const [newFileCategory, setNewFileCategory] = useState("");
   const [newFileSubcategory, setNewFileSubcategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [syncContent, setSyncContent] = useState("");
+  const [syncHint, setSyncHint] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    summary: string;
+    filesWritten: string[];
+  } | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -197,7 +205,11 @@ export default function KnowledgeLibrary() {
   };
 
   const goBack = () => {
-    if (view === "edit" && selectedFile) {
+    if (view === "sync") {
+      setView("grid");
+      setSyncResult(null);
+      setSyncError(null);
+    } else if (view === "edit" && selectedFile) {
       setView("read");
     } else if (view === "read" || (view === "edit" && !selectedFile)) {
       setView(selectedCategory ? "list" : "grid");
@@ -208,6 +220,45 @@ export default function KnowledgeLibrary() {
       setSelectedCategory(null);
     }
     setSaveMessage(null);
+  };
+
+  const startSync = () => {
+    setSyncContent("");
+    setSyncHint("");
+    setSyncResult(null);
+    setSyncError(null);
+    setView("sync");
+  };
+
+  const runSync = async () => {
+    if (!syncContent.trim()) return;
+    setSyncing(true);
+    setSyncResult(null);
+    setSyncError(null);
+
+    try {
+      const res = await fetch("/api/knowledge/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: syncContent,
+          targetHint: syncHint || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSyncResult(data);
+        fetchCategories();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSyncError(data.error || "Sync failed.");
+      }
+    } catch {
+      setSyncError("Network error.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // Count total files across all categories
@@ -266,6 +317,9 @@ export default function KnowledgeLibrary() {
     }
     if (view === "edit" && !selectedFile) {
       crumbs.push({ label: "New Document" });
+    }
+    if (view === "sync") {
+      crumbs.push({ label: "Quick Sync" });
     }
 
     return (
@@ -330,17 +384,31 @@ export default function KnowledgeLibrary() {
             )}
             {view !== "grid" && renderBreadcrumb()}
           </div>
-          {view !== "edit" && (
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer shrink-0"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              New
-            </button>
+          {view !== "edit" && view !== "sync" && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={startSync}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-indigo-600 text-sm rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4v5h5" />
+                  <path d="M20 20v-5h-5" />
+                  <path d="M20.49 9A9 9 0 005.64 5.64L4 4" />
+                  <path d="M3.51 15a9 9 0 0014.85 3.36L20 20" />
+                </svg>
+                Quick Sync
+              </button>
+              <button
+                onClick={startNew}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New
+              </button>
+            </div>
           )}
         </div>
 
@@ -526,6 +594,137 @@ export default function KnowledgeLibrary() {
               <article className="prose prose-sm prose-gray max-w-none bg-white rounded-xl border border-gray-200 p-6">
                 <ReactMarkdown>{fileContent}</ReactMarkdown>
               </article>
+            )}
+          </div>
+        )}
+
+        {/* Quick Sync */}
+        {view === "sync" && (
+          <div className="animate-fade-in">
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                Quick Sync
+              </h3>
+              <p className="text-sm text-gray-500">
+                Paste notes, decisions, proof points, competitive intel, or any content from your Claude project. The agent will parse it and file it into the right knowledge document.
+              </p>
+            </div>
+
+            {/* Paste area */}
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Content to sync
+                </label>
+                <textarea
+                  value={syncContent}
+                  onChange={(e) => setSyncContent(e.target.value)}
+                  className="w-full h-56 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  placeholder={"Paste anything here — rough notes, a conversation excerpt, new stats, a positioning decision, competitive research...\n\nExamples:\n• \"We confirmed +38% conversion lift for the insurance vertical in Q4 testing\"\n• \"Typeface is emerging as a competitor — enterprise content platform, no compliance layer\"\n• \"New approved headline: 'Your agency takes 6 weeks. You take 72 hours.'\"\n• A full block of meeting notes or Slack thread"}
+                  autoFocus
+                  disabled={syncing}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Target hint <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={syncHint}
+                  onChange={(e) => setSyncHint(e.target.value)}
+                  placeholder="e.g., proof points, competitive landscape, mortgage vertical, approved headlines..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  disabled={syncing}
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs text-gray-400">
+                The agent reads existing files before updating — no content is lost.
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={goBack}
+                  disabled={syncing}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={runSync}
+                  disabled={syncing || !syncContent.trim()}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {syncing ? (
+                    <>
+                      <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 4v5h5" />
+                        <path d="M20.49 9A9 9 0 005.64 5.64L4 4" />
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 4v5h5" />
+                        <path d="M20 20v-5h-5" />
+                        <path d="M20.49 9A9 9 0 005.64 5.64L4 4" />
+                        <path d="M3.51 15a9 9 0 0014.85 3.36L20 20" />
+                      </svg>
+                      Sync to Library
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {syncError && (
+              <div className="mb-4 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
+                {syncError}
+              </div>
+            )}
+
+            {/* Result */}
+            {syncResult && (
+              <div className="space-y-3 animate-fade-in">
+                {/* Files written badges */}
+                {syncResult.filesWritten.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {syncResult.filesWritten.map((f) => (
+                      <span
+                        key={f}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs border border-green-200"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20,6 9,17 4,12" />
+                        </svg>
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Summary */}
+                <article className="prose prose-sm prose-gray max-w-none bg-white rounded-xl border border-gray-200 p-5">
+                  <ReactMarkdown>{syncResult.summary}</ReactMarkdown>
+                </article>
+
+                {/* Sync another */}
+                <button
+                  onClick={() => {
+                    setSyncContent("");
+                    setSyncHint("");
+                    setSyncResult(null);
+                  }}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                >
+                  Sync more content
+                </button>
+              </div>
             )}
           </div>
         )}
