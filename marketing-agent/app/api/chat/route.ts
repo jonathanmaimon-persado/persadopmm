@@ -274,164 +274,220 @@ export async function POST(req: NextRequest) {
     // Agentic loop — resolve tool calls server-side before streaming
     // -------------------------------------------------------------------
 
-    const MAX_TOOL_ROUNDS = 8;
-    let currentMessages = [...apiMessages];
+    // We use a TransformStream so we can push status events (tool use)
+    // and final text chunks to the client in a single SSE stream.
+    const encoder = new TextEncoder();
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
 
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      // Call Anthropic API with streaming
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-5-20250929",
-          max_tokens: 8192,
-          system: systemPrompt,
-          messages: currentMessages,
-          tools: TOOLS,
-          stream: true,
-        }),
-      });
+    const send = (payload: Record<string, unknown>) =>
+      writer.write(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Anthropic API error:", response.status, errorText);
-        return new Response(
-          JSON.stringify({ error: `API error: ${response.status}` }),
-          {
-            status: response.status,
-            headers: { "Content-Type": "application/json" },
+    // Run the agentic loop in the background while streaming to client
+    (async () => {
+      try {
+        const MAX_TOOL_ROUNDS = 8;
+        let currentMessages = [...apiMessages];
+        const sourcesUsed: string[] = [];
+
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const response = await fetch(
+            "https://api.anthropic.com/v1/messages",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-5-20250929",
+                max_tokens: 8192,
+                system: systemPrompt,
+                messages: currentMessages,
+                tools: TOOLS,
+                stream: true,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Anthropic API error:", response.status, errorText);
+            await send({ error: `API error: ${response.status}` });
+            break;
           }
-        );
-      }
 
-      // Parse the streamed response fully to detect tool_use
-      const reader = response.body?.getReader();
-      if (!reader) {
-        return new Response(
-          JSON.stringify({ error: "No response stream" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-      }
+          const reader = response.body?.getReader();
+          if (!reader) {
+            await send({ error: "No response stream" });
+            break;
+          }
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const contentBlocks: ContentBlock[] = [];
-      let curType = "";
-      let curId = "";
-      let curName = "";
-      let curText = "";
-      let curInput = "";
-      let stopReason = "";
-      const textChunks: string[] = [];
+          const decoder = new TextDecoder();
+          let buffer = "";
+          const contentBlocks: ContentBlock[] = [];
+          let curType = "";
+          let curId = "";
+          let curName = "";
+          let curText = "";
+          let curInput = "";
+          let stopReason = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
 
-          let parsed: Record<string, unknown>;
-          try {
-            parsed = JSON.parse(data);
-          } catch {
+              let parsed: Record<string, unknown>;
+              try {
+                parsed = JSON.parse(data);
+              } catch {
+                continue;
+              }
+
+              if (parsed.type === "content_block_start") {
+                const block = parsed.content_block as Record<string, string>;
+                curType = block.type || "";
+                curId = block.id || "";
+                curName = block.name || "";
+                curText = "";
+                curInput = "";
+              } else if (parsed.type === "content_block_delta") {
+                const delta = parsed.delta as Record<string, string>;
+                if (delta.type === "text_delta" && delta.text) {
+                  curText += delta.text;
+                  // Only stream text from the final (non-tool) round
+                  if (round === 0 && stopReason === "") {
+                    // We'll buffer — can't know yet if this round ends with tool_use
+                  }
+                } else if (delta.type === "input_json_delta") {
+                  // Anthropic streams tool input as partial_json
+                  curInput += delta.partial_json || delta.text || "";
+                }
+              } else if (parsed.type === "content_block_stop") {
+                if (curType === "text") {
+                  contentBlocks.push({ type: "text", text: curText });
+                } else if (curType === "tool_use") {
+                  let parsedInput: Record<string, string> = {};
+                  try {
+                    parsedInput = JSON.parse(curInput);
+                  } catch {
+                    /* skip */
+                  }
+                  contentBlocks.push({
+                    type: "tool_use",
+                    id: curId,
+                    name: curName,
+                    input: parsedInput,
+                  });
+                }
+              } else if (parsed.type === "message_delta") {
+                const delta = parsed.delta as Record<string, string>;
+                stopReason = delta.stop_reason || "";
+              }
+            }
+          }
+
+          // If tool_use, execute tools, send status events, and loop back
+          if (stopReason === "tool_use") {
+            const toolBlocks = contentBlocks.filter(
+              (b) => b.type === "tool_use"
+            );
+
+            for (const block of toolBlocks) {
+              // Send human-readable status to client
+              if (block.name === "list_knowledge") {
+                await send({
+                  status: "Scanning knowledge library...",
+                });
+              } else if (
+                block.name === "read_knowledge" &&
+                block.input?.path
+              ) {
+                const fileName = block.input.path.split("/").pop()?.replace(/\.md$/, "").split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") || block.input.path;
+                sourcesUsed.push(block.input.path);
+                await send({
+                  status: `Reading: ${fileName}`,
+                  source: block.input.path,
+                });
+              } else if (
+                block.name === "write_knowledge" &&
+                block.input?.path
+              ) {
+                await send({
+                  status: `Updating: ${block.input.path}`,
+                  source: block.input.path,
+                });
+              }
+            }
+
+            const toolResults = toolBlocks.map((block) => ({
+              type: "tool_result" as const,
+              tool_use_id: block.id!,
+              content: executeTool(block.name!, block.input!),
+            }));
+
+            currentMessages.push({
+              role: "assistant",
+              content: contentBlocks,
+            });
+            currentMessages.push({ role: "user", content: toolResults });
             continue;
           }
 
-          if (parsed.type === "content_block_start") {
-            const block = parsed.content_block as Record<string, string>;
-            curType = block.type || "";
-            curId = block.id || "";
-            curName = block.name || "";
-            curText = "";
-            curInput = "";
-          } else if (parsed.type === "content_block_delta") {
-            const delta = parsed.delta as Record<string, string>;
-            if (delta.type === "text_delta" && delta.text) {
-              curText += delta.text;
-              textChunks.push(delta.text);
-            } else if (delta.type === "input_json_delta" && delta.text) {
-              curInput += delta.text;
-            }
-          } else if (parsed.type === "content_block_stop") {
-            if (curType === "text") {
-              contentBlocks.push({ type: "text", text: curText });
-            } else if (curType === "tool_use") {
-              let parsedInput: Record<string, string> = {};
-              try {
-                parsedInput = JSON.parse(curInput);
-              } catch {
-                /* skip */
-              }
-              contentBlocks.push({
-                type: "tool_use",
-                id: curId,
-                name: curName,
-                input: parsedInput,
-              });
-            }
-          } else if (parsed.type === "message_delta") {
-            const delta = parsed.delta as Record<string, string>;
-            stopReason = delta.stop_reason || "";
+          // No tool calls — stream the final text
+          const finalText = contentBlocks
+            .filter((b) => b.type === "text")
+            .map((b) => b.text || "")
+            .join("");
+
+          // Stream text in chunks for a natural feel
+          const chunkSize = 12;
+          for (let i = 0; i < finalText.length; i += chunkSize) {
+            await send({ text: finalText.slice(i, i + chunkSize) });
           }
+
+          // Send sources if any were consulted
+          if (sourcesUsed.length > 0) {
+            const unique = [...new Set(sourcesUsed)];
+            await send({ sources: unique });
+          }
+
+          break;
+        }
+      } catch (err) {
+        console.error("Chat stream error:", err instanceof Error ? err.message : err);
+        try {
+          await send({ error: "Internal server error" });
+        } catch {
+          /* writer may be closed */
+        }
+      } finally {
+        try {
+          await writer.write(encoder.encode("data: [DONE]\n\n"));
+          await writer.close();
+        } catch {
+          /* writer may already be closed */
         }
       }
+    })();
 
-      // If tool_use, execute tools and loop back
-      if (stopReason === "tool_use") {
-        const toolBlocks = contentBlocks.filter((b) => b.type === "tool_use");
-        const toolResults = toolBlocks.map((block) => ({
-          type: "tool_result" as const,
-          tool_use_id: block.id!,
-          content: executeTool(block.name!, block.input!),
-        }));
-
-        currentMessages.push({ role: "assistant", content: contentBlocks });
-        currentMessages.push({ role: "user", content: toolResults });
-
-        // Reset text chunks for next round
-        textChunks.length = 0;
-        continue;
-      }
-
-      // No tool calls — stream collected text back to client
-      const encoder = new TextEncoder();
-      const outStream = new ReadableStream({
-        start(controller) {
-          for (const chunk of textChunks) {
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`)
-            );
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        },
-      });
-
-      return new Response(outStream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    // Exhausted tool rounds
-    return new Response(
-      JSON.stringify({ error: "Max tool rounds reached" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (err) {
     console.error("Chat API error:", err);
     return new Response(

@@ -159,6 +159,8 @@ export default function Home() {
           role: "assistant",
           content: "",
           timestamp: Date.now(),
+          sources: [],
+          status: "",
         };
 
         // Add empty assistant message
@@ -187,20 +189,48 @@ export default function Home() {
 
               try {
                 const parsed = JSON.parse(data);
+
                 if (parsed.text) {
                   assistantMsg.content += parsed.text;
-                  // Update the message in the conversation
+                  assistantMsg.status = "";
                   updateConversation(capturedConvId, (conv) => ({
                     ...conv,
                     messages: conv.messages.map((m) =>
                       m.id === assistantMsg.id
-                        ? { ...m, content: assistantMsg.content }
+                        ? { ...m, content: assistantMsg.content, status: "" }
                         : m
                     ),
                     updatedAt: Date.now(),
                   }));
+                } else if (parsed.status) {
+                  assistantMsg.status = parsed.status;
+                  updateConversation(capturedConvId, (conv) => ({
+                    ...conv,
+                    messages: conv.messages.map((m) =>
+                      m.id === assistantMsg.id
+                        ? { ...m, status: parsed.status }
+                        : m
+                    ),
+                    updatedAt: Date.now(),
+                  }));
+                } else if (parsed.sources) {
+                  assistantMsg.sources = parsed.sources;
+                  updateConversation(capturedConvId, (conv) => ({
+                    ...conv,
+                    messages: conv.messages.map((m) =>
+                      m.id === assistantMsg.id
+                        ? { ...m, sources: parsed.sources }
+                        : m
+                    ),
+                    updatedAt: Date.now(),
+                  }));
+                } else if (parsed.error) {
+                  throw new Error(parsed.error);
                 }
-              } catch {
+              } catch (parseErr) {
+                if (parseErr instanceof Error && parseErr.message.startsWith("API error")) {
+                  throw parseErr;
+                }
                 // Skip unparseable chunks
               }
             }
