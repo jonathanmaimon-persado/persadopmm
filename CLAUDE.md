@@ -324,14 +324,16 @@ If you remove "Persado" from the copy and it could describe any AI content tool,
 ## REPOSITORY STRUCTURE
 
 ```
-persado-marketing-ops/
+persadopmm/
 ├── CLAUDE.md                              ← You are here
-├── knowledge/
+├── .devcontainer/                         ← GitHub Codespaces config (Node 22, port 3000)
+│   └── devcontainer.json
+├── knowledge/                             ← ✅ Fully populated (16 files, ~1,920 lines)
 │   ├── positioning/
-│   │   ├── messaging-hierarchy.md
-│   │   ├── competitive-landscape.md
-│   │   ├── proof-points.md
-│   │   ├── guardrails.md
+│   │   ├── messaging-hierarchy.md         ← THE foundational doc — 4-layer sequence
+│   │   ├── competitive-landscape.md       ← Baby Carrot Strategy, competitor breakdown
+│   │   ├── proof-points.md               ← All approved stats, organized by layer
+│   │   ├── guardrails.md                 ← Hard constraints, banned language, tests
 │   │   └── verticals/
 │   │       ├── retail-banking.md
 │   │       ├── co-branded-cards.md
@@ -348,49 +350,85 @@ persado-marketing-ops/
 │       ├── approved-headlines.md
 │       ├── subject-line-bank.md
 │       └── proof-point-usage.md
+├── marketing-agent/                       ← ✅ Next.js chat app (see MARKETING AGENT section)
+│   ├── app/
+│   │   ├── page.tsx                      ← Main chat interface (multi-conversation)
+│   │   ├── layout.tsx                    ← Root layout
+│   │   ├── globals.css                   ← TailwindCSS styles
+│   │   ├── api/
+│   │   │   ├── chat/route.ts             ← Anthropic API integration + knowledge context
+│   │   │   └── knowledge/                ← Knowledge library API endpoints
+│   │   └── components/
+│   │       ├── ChatWindow.tsx
+│   │       ├── InputBar.tsx
+│   │       ├── Sidebar.tsx
+│   │       ├── WelcomeState.tsx
+│   │       ├── MessageBubble.tsx
+│   │       ├── TypingIndicator.tsx
+│   │       └── KnowledgeLibrary.tsx
+│   ├── lib/types.ts                      ← TypeScript type definitions
+│   ├── package.json                      ← Next.js 16.1.6, React 19.2.3, TailwindCSS 3.4
+│   ├── .env.example                      ← Requires ANTHROPIC_API_KEY
+│   └── ...config files
 ├── templates/
 │   ├── outreach/
-│   ├── collateral/
-│   └── web/
-├── skills/                                ← Marketing skill modules
-│   ├── ab-test-setup/
-│   ├── analytics-tracking/
-│   ├── competitor-alternatives/
-│   ├── content-strategy/
-│   ├── copy-editing/
-│   ├── copywriting/
-│   ├── email-sequence/
-│   ├── form-cro/
-│   ├── free-tool-strategy/
-│   ├── launch-strategy/
-│   ├── marketing-ideas/
-│   ├── marketing-psychology/
-│   ├── onboarding-cro/
-│   ├── page-cro/
-│   ├── paid-ads/
-│   ├── paywall-upgrade-cro/
-│   ├── popup-cro/
-│   ├── pricing-strategy/
-│   ├── product-marketing-context/
-│   ├── programmatic-seo/
-│   ├── referral-program/
-│   ├── schema-markup/
-│   ├── seo-audit/
-│   ├── signup-flow-cro/
-│   └── social-content/
+│   │   └── subject-line-bank.md          ← ✅ Populated
+│   ├── collateral/                       ← 📋 Scaffolded (placeholder)
+│   └── web/                              ← 📋 Scaffolded (placeholder)
+├── skills/                                ← ✅ 25 marketing skill modules (see SKILLS section)
+│   └── <skill-name>/
+│       ├── SKILL.md                      ← Methodology + output format
+│       └── references/                   ← Supporting frameworks
 ├── agents/
 │   ├── shared/
-│   │   └── system-prompt-base.md
-│   ├── content-writer/
-│   ├── campaign-planner/
-│   ├── collateral-producer/
-│   ├── analyst/
-│   └── qa-reviewer/
+│   │   └── system-prompt-base.md         ← ✅ Core system prompt for all agents
+│   ├── content-writer/                   ← 📋 Scaffolded
+│   ├── campaign-planner/                 ← 📋 Scaffolded
+│   ├── collateral-producer/              ← 📋 Scaffolded
+│   ├── analyst/                          ← 📋 Scaffolded
+│   └── qa-reviewer/                      ← 📋 Scaffolded
 └── projects/
-    ├── website-relaunch/
-    ├── h1-2026-launches/
-    └── outreach-v10/
+    ├── website-relaunch/                 ← 📋 Scaffolded
+    ├── h1-2026-launches/                 ← 📋 Scaffolded
+    └── outreach-v10/                     ← 📋 Scaffolded
 ```
+
+**Legend:** ✅ = Fully populated | 📋 = Scaffolded (directory exists with .gitkeep, awaiting content)
+
+---
+
+## MARKETING AGENT (Interactive Chat Application)
+
+The `/marketing-agent` directory contains a full-stack Next.js chat application that provides interactive access to Persado's knowledge base.
+
+### Purpose
+An internal tool where Jonathan and team can:
+- Ask questions about Persado messaging, positioning, and strategy
+- Browse the complete knowledge library
+- Get real-time AI guidance on campaign messaging and deliverables
+- Develop content with the full knowledge base as context
+
+### Tech Stack
+- **Framework:** Next.js 16.1.6 with App Router
+- **Frontend:** React 19.2.3, TailwindCSS 3.4, React Markdown
+- **API:** Anthropic Claude API (streaming responses)
+- **Language:** TypeScript
+
+### How It Works
+- `app/api/chat/route.ts` loads all files from `/knowledge` and injects them as system context into Claude API calls
+- The chat interface supports multiple conversations, a knowledge library browser, and real-time streaming
+- Requires `ANTHROPIC_API_KEY` in `.env.local` (see `.env.example`)
+
+### Development
+```bash
+cd marketing-agent
+npm install
+cp .env.example .env.local  # Add your ANTHROPIC_API_KEY
+npm run dev                  # Runs on http://localhost:3000
+```
+
+### Dev Container
+The `.devcontainer/devcontainer.json` configures GitHub Codespaces with Node 22, port 3000 forwarding, and auto-runs `npm install` in `/marketing-agent` on container creation.
 
 ---
 
@@ -446,8 +484,27 @@ The `/skills` directory contains 25 specialized marketing skill modules. Each sk
 
 ---
 
+## KNOWLEDGE BASE ARCHITECTURE
+
+The `/knowledge` directory is the single source of truth for all Persado positioning. It contains 16 interconnected markdown files (~1,920 lines total) organized into four domains:
+
+| Domain | Files | Purpose |
+|--------|-------|---------|
+| **positioning/** | 4 core + 4 verticals | Messaging hierarchy, guardrails, proof points, competitive landscape, vertical-specific hooks |
+| **brand/** | 3 files | Voice/tone guidelines, visual standards, approved terminology |
+| **audiences/** | 2 files | ICP profiles, detailed persona pain points and discovery questions |
+| **assets/** | 3 files | Pre-vetted headlines, subject line bank, proof point usage guidelines |
+
+**Key files to read before any deliverable:**
+1. `knowledge/positioning/messaging-hierarchy.md` — The 4-layer sequence (Speed → Cost → Compliance → Performance)
+2. `knowledge/positioning/guardrails.md` — 24 banned words/phrases, structural rules, specificity test, audience-specific rules
+3. `knowledge/positioning/proof-points.md` — All approved statistics organized by messaging layer
+
+---
+
 ## Git Conventions
 
 - **Branch naming:** Feature branches use the pattern `claude/<description>-<session-id>`
 - **Commits:** Use clear, descriptive commit messages summarizing the "why" over the "what"
 - **Push:** Always use `git push -u origin <branch-name>`
+- **Workflow:** Feature branches → pull requests → merge to master
