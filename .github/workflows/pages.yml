@@ -3,8 +3,7 @@ name: Deploy GitHub Pages
 on:
   push:
     branches:
-      - main
-      - claude/setup-github-pages-658mO
+      - claude/claude-md-mlp48b9f8yhe10om-7Ox63
   workflow_dispatch:
 
 permissions:
